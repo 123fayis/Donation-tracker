@@ -1,53 +1,74 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, request, jsonify
 import razorpay
+import os
+import json
 from datetime import datetime
 
 app = Flask(__name__)
 
-# 🔑 Replace with your Razorpay keys
-client = razorpay.Client(auth=("rzp_test_TIQgFkh3wARwFn", "dsOenb49tAr4g5tWBtbA9AKj"))
+# Razorpay client
+client = razorpay.Client(auth=(
+    os.environ.get("RAZORPAY_KEY_ID"),
+    os.environ.get("RAZORPAY_KEY_SECRET")
+))
 
+WEBHOOK_SECRET = "mysecret123"
 
-def fetch_donations():
-    payments = client.payment.all()
-
-    donations = []
-    total = 0
-
-    for payment in payments['items']:
-        if payment['status'] == 'captured':
-
-            amount = payment['amount'] / 100
-            time = datetime.fromtimestamp(payment['created_at']).strftime('%d %b %Y, %I:%M %p')
-
-            donations.append({
-                "amount": amount,
-                "time": time
-            })
-
-            total += amount
-
-    # Latest first
-    donations = donations[::-1]
-    last = donations[0] if donations else None
-
-    return total, donations, last
+# In-memory data (use DB later)
+donations = []
+total = 0
+last_donation = None
 
 
 @app.route("/")
-def home():
-    total, donations, last = fetch_donations()
-    return render_template("index.html", total=total, donations=donations, last=last)
+def index():
+    return render_template("index.html")
 
 
-@app.route("/get_total")
-def get_total():
-    total, donations, last = fetch_donations()
+# API for frontend live updates
+@app.route("/data")
+def get_data():
     return jsonify({
         "total": total,
-        "donations": donations,
-        "last": last
+        "donations": donations[-10:],
+        "last": last_donation
     })
+
+
+# Razorpay webhook
+@app.route("/webhook", methods=["POST"])
+def razorpay_webhook():
+    global total, last_donation
+
+    body = request.data
+    signature = request.headers.get("X-Razorpay-Signature")
+
+    try:
+        client.utility.verify_webhook_signature(
+            body, signature, WEBHOOK_SECRET
+        )
+
+        data = json.loads(body)
+
+        payment = data["payload"]["payment"]["entity"]
+
+        amount = payment["amount"] / 100
+        time = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+        donation = {
+            "amount": amount,
+            "time": time
+        }
+
+        donations.append(donation)
+        total += amount
+        last_donation = donation
+
+        return "OK", 200
+
+    except Exception as e:
+        print("Webhook error:", e)
+        return "Invalid", 400
 
 
 if __name__ == "__main__":

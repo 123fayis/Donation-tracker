@@ -5,64 +5,52 @@
 
     <style>
         body {
-            font-family: 'Segoe UI', Arial;
+            font-family: Arial;
             margin: 0;
-            background: linear-gradient(135deg, #dfe9f3, #ffffff);
+            background: #f4f6f9;
         }
 
         .header {
-            background: linear-gradient(135deg, #4facfe, #00c6ff);
+            background: linear-gradient(90deg, #3b82f6, #06b6d4);
             color: white;
-            padding: 30px;
+            padding: 20px;
             text-align: center;
-            font-size: 26px;
+            font-size: 24px;
             font-weight: bold;
         }
 
         .container {
-            max-width: 700px;
-            margin: -30px auto 30px;
+            max-width: 800px;
+            margin: auto;
             padding: 20px;
         }
 
         .card {
-            background: rgba(255,255,255,0.85);
-            padding: 22px;
-            border-radius: 14px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+            background: white;
+            padding: 20px;
             margin-bottom: 20px;
-            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
         }
 
-        .total {
-            font-size: 42px;
-            font-weight: bold;
-            color: #2ecc71;
-        }
-
-        .progress-container {
-            width: 100%;
-            background: #ddd;
-            border-radius: 20px;
-            overflow: hidden;
-            margin-top: 12px;
+        .amount {
+            font-size: 40px;
+            color: #22c55e;
         }
 
         .progress-bar {
-            height: 22px;
+            width: 100%;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #22c55e;
             width: 0%;
-            background: linear-gradient(90deg, #00c853, #69f0ae);
-            transition: width 0.6s ease;
-        }
-
-        .progress-text {
-            margin-top: 8px;
-            font-weight: bold;
-        }
-
-        .last-donation {
-            background: linear-gradient(135deg, #fff3cd, #ffe8a1);
-            border-left: 6px solid #ffb300;
+            transition: width 0.5s ease;
         }
 
         ul {
@@ -71,151 +59,128 @@
         }
 
         li {
+            background: #f1f5f9;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 8px;
             display: flex;
             justify-content: space-between;
-            background: #ffffff;
-            padding: 12px;
-            margin: 6px 0;
-            border-radius: 8px;
-            font-size: 14px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }
 
-        .button {
+        .last {
+            background: #fff7ed;
+            border-left: 5px solid orange;
+        }
+
+        .donate-btn {
             display: block;
             text-align: center;
-            padding: 14px;
-            margin-top: 15px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: #3b82f6;
             color: white;
-            text-decoration: none;
+            padding: 15px;
             border-radius: 10px;
+            text-decoration: none;
             font-weight: bold;
-            transition: all 0.3s ease;
         }
 
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        .popup {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #22c55e;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
         }
     </style>
 </head>
 
 <body>
 
-<div class="header">
-    💰 Donation Dashboard
-</div>
+<div class="header">💰 Donation Dashboard</div>
 
 <div class="container">
 
-    <!-- Total -->
     <div class="card">
-        <div>Total Collected</div>
-        <div class="total">₹<span id="total">{{ total }}</span></div>
+        <h3>Total Collected</h3>
+        <div class="amount" id="total">₹0</div>
     </div>
 
-    <!-- Progress -->
     <div class="card">
-        <div>Goal Progress</div>
-
-        <div class="progress-container">
-            <div class="progress-bar" id="progress-bar"></div>
+        <h3>Goal Progress</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
         </div>
-
-        <div class="progress-text" id="progress-text">
-            0% of ₹10,000 goal
-        </div>
+        <p id="percent">0%</p>
     </div>
 
-    <!-- Last Donation -->
-    <div class="card last-donation">
-        <h3>🕒 Last Donation</h3>
-        <p id="last-donation-text">
-            {% if last %}
-                ₹{{ last.amount }} at {{ last.time }}
-            {% else %}
-                No donations yet
-            {% endif %}
-        </p>
+    <div class="card last">
+        <h3>⏱ Last Donation</h3>
+        <p id="last">No donations yet</p>
     </div>
 
-    <!-- Donations -->
     <div class="card">
         <h3>Recent Donations</h3>
-
-        <ul id="donation-list">
-            {% for d in donations %}
-                <li>
-                    <span>₹{{ d.amount }}</span>
-                    <span>{{ d.time }}</span>
-                </li>
-            {% endfor %}
-        </ul>
+        <ul id="donations"></ul>
     </div>
 
-    <a class="button" href="https://rzp.io/rzp/4pyAtqKt" target="_blank">
-        Donate Now 🚀
+    <a href="https://rzp.io/rzp/4pyAtqKt" target="_blank" class="donate-btn">
+        Donate Now
     </a>
 
 </div>
 
+<div class="popup" id="popup"></div>
+
 <script>
-const GOAL = 10000;
+let lastAmountShown = 0;
 
-function animateValue(start, end, duration) {
-    let range = end - start;
-    let current = start;
-    let increment = range / (duration / 20);
+async function loadData() {
+    const res = await fetch("/data");
+    const data = await res.json();
 
-    let timer = setInterval(() => {
-        current += increment;
-        document.getElementById("total").innerText = Math.floor(current);
+    document.getElementById("total").innerText = "₹" + data.total;
 
-        if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
-            document.getElementById("total").innerText = end;
-            clearInterval(timer);
+    // Progress
+    let percent = (data.total / 10000) * 100;
+    document.getElementById("progress").style.width = percent + "%";
+    document.getElementById("percent").innerText =
+        percent.toFixed(1) + "% of ₹10,000";
+
+    // Last donation
+    if (data.last) {
+        document.getElementById("last").innerText =
+            "₹" + data.last.amount + " at " + data.last.time;
+
+        // Popup
+        if (data.last.amount !== lastAmountShown) {
+            showPopup(data.last.amount);
+            lastAmountShown = data.last.amount;
         }
-    }, 20);
-}
+    }
 
-function updateDonations() {
-    fetch("/get_total")
-    .then(res => res.json())
-    .then(data => {
-
-        let current = parseFloat(document.getElementById("total").innerText) || 0;
-        animateValue(current, data.total, 400);
-
-        let list = document.getElementById("donation-list");
-        list.innerHTML = "";
-
-        data.donations.forEach(d => {
-            let li = document.createElement("li");
-            li.innerHTML = `<span>₹${d.amount}</span><span>${d.time}</span>`;
-            list.appendChild(li);
-        });
-
-        let percent = (data.total / GOAL) * 100;
-        if (percent > 100) percent = 100;
-
-        document.getElementById("progress-bar").style.width = percent + "%";
-        document.getElementById("progress-text").innerText =
-            percent.toFixed(1) + "% of ₹10,000 goal";
-
-        let lastText = document.getElementById("last-donation-text");
-
-        if (data.last) {
-            lastText.innerText =
-                "₹" + data.last.amount + " at " + data.last.time;
-        } else {
-            lastText.innerText = "No donations yet";
-        }
+    // List
+    let list = "";
+    data.donations.slice().reverse().forEach(d => {
+        list += `<li><span>₹${d.amount}</span><span>${d.time}</span></li>`;
     });
+
+    document.getElementById("donations").innerHTML = list;
 }
 
-setInterval(updateDonations, 5000);
-updateDonations();
+function showPopup(amount) {
+    const popup = document.getElementById("popup");
+    popup.innerText = `🎉 ₹${amount} donated!`;
+    popup.style.display = "block";
+
+    setTimeout(() => {
+        popup.style.display = "none";
+    }, 3000);
+}
+
+setInterval(loadData, 3000);
+loadData();
 </script>
 
 </body>
